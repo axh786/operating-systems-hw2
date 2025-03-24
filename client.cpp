@@ -14,11 +14,15 @@ COSC 3360: Programming Assignment 2
 #include <netdb.h> 
 #include <strings.h>
 #include <vector>
+#include <sstream>
+#include <pthread.h>
 
 struct row { // defining row struct from data given by input so each row will have the ranges to search thru, which head pos they are needed and then loop thru data pos
+    int cols;
     char* ranges;
     int headPos[2];
     int* dataPos;
+    int dataSize;
     int index;
     char** outputMatrix; // make changes to matrix when done with figuring out character placement
     
@@ -26,18 +30,7 @@ struct row { // defining row struct from data given by input so each row will ha
     char* portno;
 };
 
-
-
-/*
-Struct vectors will have to be changed into arrays
-haed pos and data pos will be easily changed to arrays
-ranges will be harder, maybe struct in struct?
-output the matrix using strings and prints no more matrix maybe
-where does lines come into play?
-send char* ranges over there and find the ranges to use in the algorithm
-*/
-
-void createSocket(char* portNoRaw, char* serverIP, int sockfd) {
+void createSocket(char* portNoRaw, char* serverIP, int& sockfd) {
     // need to feed in sockfd portno and server IP
     int portno = std::atoi(portNoRaw);
     struct sockaddr_in serv_addr;
@@ -80,9 +73,22 @@ void sendStringData(const std::string& buffer, int sockfd) {
     }
 }
 
-void sendIntarrData(int* arr, int sockfd) {
+void sendMatrixData(char* row, int cols, int sockfd){
     int n;
-    int arrSize = sizeof(arr)/sizeof(arr[0]);
+    n = write(sockfd,&cols,sizeof(int));
+    if (n < 0) {
+        std::cerr << "ERROR writing to socket" << std::endl;
+        exit(0);
+    }
+    n = write(sockfd,row,cols);
+    if (n < 0) {
+        std::cerr << "ERROR writing to socket" << std::endl;
+        exit(0);
+    }
+}
+
+void sendIntarrData(int* arr, int arrSize, int sockfd) {
+    int n;
     n = write(sockfd,&arrSize,sizeof(int));
     if (n < 0) {
         std::cerr << "ERROR writing to socket" << std::endl;
@@ -111,23 +117,19 @@ void readData(int index, char** outputMatrix, int sockfd) {
     }
     char* buffer = tempBuffer;
     delete [] tempBuffer;
-    strcpy(outputMatrix[index], buffer);
+    std::strcpy(outputMatrix[index], buffer);
 }
 
 void * decoder(void *void_ptr) {  // thread function
     int sockfd;
-    /*
-    What will be sent to the server thru this thread function:
-    everything in rows will be sent im guessing so 4 different read/writes, first 5 attributes in my struct
-    send a row of the matrix to the server -> using data and head pos aling with range will that row up 
-    (we might not need to send index then) -> output it row by row
-    */
-    // create socket
-    //write sendStringData, ranges
-    //write sendStringData, row we are editng outputMatrix[index]
-    //write sendIntarrData, dataPos
-    //write sendIntarrData, headPos
-    //read data
+    struct row* ptr = (row*) void_ptr;
+    createSocket(ptr->portno, ptr->serverIP, sockfd); // opening a socket
+    sendStringData(ptr->ranges, sockfd); // send ranges over to server
+    sendMatrixData(ptr->outputMatrix[ptr->index], ptr->cols, sockfd); // send the row that will be edited to the server
+    sendIntarrData(ptr->dataPos, ptr->dataSize, sockfd); // sending datapos
+    sendIntarrData(ptr->headPos, 2, sockfd); // sending headpos
+    readData(ptr->index, ptr->outputMatrix, sockfd); // read data from the server
+
     close (sockfd);
     return NULL;
 }
@@ -137,20 +139,92 @@ int main(int argc, char *argv[]) {
        std::cerr << "usage " << argv[0] << " hostname port" << std::endl;
        exit(0);
     }
-
-    int col, row; // reading matrix size from first line
-    std::cin >> col >> row;
+    char* serverIP = argv[1];
+    char* portno = argv[2];
+    int cols, rows; // reading matrix size from first line
+    std::cin >> cols >> rows;
     std::cin.ignore();
-    char** outputMatrix = new char*[row];
+    char** outputMatrix = new char*[rows];
     
-    for (int r = 0; r < row; ++r) { // initalizing 2d array
-        outputMatrix[r] = new char[col];
-        std::fill(outputMatrix[r], outputMatrix[r] + col, ' '); // fill 2d array with spaces before decoding
+    for (int r = 0; r < rows; ++r) { // initalizing 2d array
+        outputMatrix[r] = new char[cols];
+        std::fill(outputMatrix[r], outputMatrix[r] + cols, ' '); // fill 2d array with spaces before decoding
+    }
+    std::string ranges; // reading second line to get the ranges, stored as a string
+    std::getline(std::cin, ranges);
+
+    std::string headLine; // reading third line to get the headPos arr, stored as an integer array
+    std::getline(std::cin, headLine);
+    std::stringstream ssCountHead(headLine);
+    int value, headSize = 0;
+    while (ssCountHead >> value) {++headSize;}
+    int* headPosition = new int[headSize];
+    std::stringstream ssHead(headLine);
+    for (int i = 0; i < headSize; ++i) {ssHead >> headPosition[i];}
+
+    std::string dataLine; // reading fourth line to get the dataPos arr, stored as an integer array
+    std::getline(std::cin, dataLine);
+    std::stringstream ssCountData(dataLine);
+    int dataSize = 0;
+    while (ssCountData >> value) {++dataSize;}
+    int* dataPosition = new int[dataSize];
+    std::stringstream ssData(dataLine);
+    for (int i = 0; i < dataSize; ++i) {ssData >> dataPosition[i];}
+
+    // threading and outputting will both be done in main
+    std::vector<row> lines;
+    lines.reserve(rows);
+     for (int i = 0; i < rows; i++) {
+        row line;
+        line.cols = cols;
+        line.ranges = new char[ranges.size()+1]; // put ranges in each member
+        std::strcpy(line.ranges, ranges.c_str());
+        line.headPos[0] = headPosition[i]; // filling in head pos
+        if (i == rows - 1) {line.headPos[1]= dataSize;} // if that checks if last section, if it is set end to size of data pos
+        else {line.headPos[1] = headPosition[i+1];}
+        line.dataPos = dataPosition; // set to dataPosition, index, outputmatrix and serverip + portno
+        line.dataSize = dataSize;
+        line.index = i;
+        line.outputMatrix = outputMatrix;
+        line.serverIP = serverIP;
+        line.portno = portno;
+
+        lines.push_back(line);
+    }
+    
+    pthread_t *tid = new pthread_t[rows]; // dynamic array of pthread_t of size of the image height (rows), based off of Dr. Rincon's threading practices
+    for (int i = 0; i < rows; i++) { // for loop that iterates through the lines in the image (amount of rows)
+        if(pthread_create(&tid[i],nullptr,decoder,(void *) &lines.at(i))!= 0) {
+			std::cerr << "Error creating thread" << std::endl;
+			return 1;
+		}
     }
 
-    // read the rest out output, save ranges as a string, datapos and headpos as arrays and have an index
-    // threading and outputting will both be done in main
+    for (int j = 0; j < rows; j++) { // Waits for other threads to finish then call pthread_join 
+        pthread_join(tid[j],nullptr);
+    }
+
+    for (int r = 0; r < rows; r++) { // printing out the matrix 
+        for (int c = 0; c < cols; c++) {
+            std::cout << outputMatrix[r][c];
+        }
+        std::cout << std::endl;
+    }
+
+
+
+    for (int r = 0; r < rows; ++r) { // deallocating memory for matrix
+        delete[] outputMatrix[r];
+    }
+    delete[] outputMatrix;
     
+    for (int i = 0; i < lines.size(); ++i) { // deallocating memory for lines ranges
+        delete[] lines[i].ranges;
+    }
+    
+    delete[] tid;
+    delete[] headPosition;
+    delete[] dataPosition;
 
     return 0;
 }
