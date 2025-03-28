@@ -23,10 +23,42 @@ readData(ptr->index, ptr->outputMatrix, sockfd); // read data from the server
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
+#include <sstream>
 #include <strings.h>
 
-void matrixEncoder(char* ranges, char* row, int* dataPos, int* headPos) { //algorithm
+void matrixEncoder(char* range, char* row, int* dataPos, int* headPos) { //algorithm
 
+    std::vector<std::pair<char, std::vector<std::pair<int, int> > > > ranges;
+    std::istringstream iss(range);
+    std::string token;
+    while (std::getline(iss, token, ',')) {
+        char id = token[0];
+        std::vector<std::pair<int, int> > pairs;
+        std::istringstream subIss(token.substr(2));
+        int a, b;
+        while (subIss >> a >> b) {
+            pairs.emplace_back(a, b);
+        }
+        ranges.emplace_back(id, pairs);
+    }
+
+    for (int i = headPos[0]; i < headPos[1]; i++) { // loops through the range
+         int data = dataPos[i];
+         for (int j = 0; j < ranges.size(); j++) {
+             char character = ranges[j].first;
+             const std::vector<std::pair<int, int> >& inner_ranges = ranges[j].second;
+             for (int k = 0; k < inner_ranges.size(); k++) {
+                 int start = inner_ranges[k].first; // gets the ranges from the nested vector pair
+                 int end = inner_ranges[k].second;
+                 if (data >= start && data <= end) { // checks to see if data falls in range if true adds char to the matrix
+                     row[data] = character;
+                     break;
+                 }
+                 
+             }
+         }
+    }
+    
 }
 
 void clientInteraction(int newsockfd) {
