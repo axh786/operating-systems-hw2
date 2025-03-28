@@ -25,12 +25,86 @@ readData(ptr->index, ptr->outputMatrix, sockfd); // read data from the server
 #include <netdb.h> 
 #include <strings.h>
 
-/*void matrixEncoder() { algorithm
+void matrixEncoder(char* ranges, char* row, int* dataPos, int* headPos) { //algorithm
 
-}*/
+}
 
 void clientInteraction(int newsockfd) {
+    int n, msgSize = 0;
+    n = read(newsockfd, &msgSize, sizeof(int)); // ranges of the chars
+    if (n < 0) {
+        std::cerr << "Error reading from socket" << std::endl;
+        exit(0);
+    }
+    char* ranges = new char[msgSize+1];
+    bzero(ranges, msgSize + 1);
+    n = read(newsockfd, ranges, msgSize);
+    if (n < 0) {
+        std::cerr << "Error reading from socket" << std::endl;
+        exit(0);
+    }
+
+    n = 0;
+    int rowSize = 0; // matrix row that will be decoded
+    n = read(newsockfd, &rowSize, sizeof(int));
+    if (n < 0) {
+        std::cerr << "Error reading from socket" << std::endl;
+        exit(0);
+    }
+    char* row = new char[rowSize+1];
+    bzero(row, rowSize + 1);
+    n = read(newsockfd, row, rowSize);
+    if (n < 0) {
+        std::cerr << "Error reading from socket" << std::endl;
+        exit(0);
+    }
+
+    int dataSize = 0; // dataPos arr that contains all of the positions in the matrix
+    n = 0; 
+    n = read(newsockfd, &dataSize, sizeof(int));
+    if (n < 0) {
+        std::cerr << "Error reading from socket" << std::endl;
+        exit(0);
+    }
+    int* dataPos = new int[dataSize];
+    bzero(dataPos, dataSize * sizeof(int));
+    n = read(newsockfd, dataPos, msgSize);
+    if (n < 0) {
+        std::cerr << "Error reading from socket" << std::endl;
+        exit(0);
+    }
+
+    int headSize = 0;
+    n = 0; 
+    n = read(newsockfd, &headSize, sizeof(int));
+    if (n < 0) {
+        std::cerr << "Error reading from socket" << std::endl;
+        exit(0);
+    }
+    int* headPos = new int[headSize];
+    bzero(headPos, headSize * sizeof(int));
+    n = read(newsockfd, headPos, msgSize);
+    if (n < 0) {
+        std::cerr << "Error reading from socket" << std::endl;
+        exit(0);
+    }
     
+    matrixEncoder(ranges, row, dataPos, headPos);
+    
+    n = 0;
+    n = write(newsockfd, &rowSize, sizeof(int));
+    if (n < 0) {
+        std::cerr << "Error writing to socket" << std::endl;
+        exit(0);
+    }
+    n = write(newsockfd, row, msgSize);
+    if (n < 0) {
+        std::cerr << "Error writing to socket" << std::endl;
+        exit(0);
+    } 
+    
+    close(newsockfd);
+    exit(0);
 }
 
 void fireman(int) {
