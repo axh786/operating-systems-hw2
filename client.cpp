@@ -4,7 +4,11 @@ Dr. Rincon
 COSC 3360: Programming Assignment 2
 22 Mar 2025
 */
-// The socket related code is provided by Dr. Rincons examples in canvas
+
+/*
+NOTE FOR GRADER:
+PLEASE READ NOTE IN server.cpp.
+*/
 #include <unistd.h>
 #include <iostream>
 #include <string>
@@ -16,7 +20,7 @@ COSC 3360: Programming Assignment 2
 #include <vector>
 #include <sstream>
 #include <pthread.h>
-
+// The socket related code is provided by Dr. Rincons examples in canvas
 struct row { // defining row struct from data given by input so each row will have the ranges to search thru, which head pos they are needed and then loop thru data pos
     int cols;
     char* ranges;
