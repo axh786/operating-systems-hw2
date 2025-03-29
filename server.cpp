@@ -4,32 +4,22 @@ Dr. Rincon
 COSC 3360: Programming Assignment 2
 22 Mar 2025
 */
-/*
-have to fork in server.cpp
-we will read the data in order that is sent to us from the client then implement the algorithm to parse and process the data
-
-sendStringData(ptr->ranges, sockfd); // send ranges over to server
-sendMatrixData(ptr->outputMatrix[ptr->index], ptr->cols, sockfd); // send the row that will be edited to the server
-sendIntarrData(ptr->dataPos, ptr->dataSize, sockfd); // sending datapos
-sendIntarrData(ptr->headPos, 2, sockfd); // sending headpos
-readData(ptr->index, ptr->outputMatrix, sockfd); // read data from the server
-
-
-*/
+// The socket related code is provided by Dr. Rincons examples in canvas
 #include <unistd.h>
 #include <iostream>
 #include <string>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h> 
+#include <netdb.h>
 #include <sstream>
-#include <strings.h>
+#include <vector>
+#include <string.h>
+#include <sys/wait.h>
 
-void matrixEncoder(char* range, char* row, int* dataPos, int* headPos) { //algorithm
-
+void matrixEncoder(char* range, char* row, int* dataPos, int* headPos) { //algorithm from PA1 
     std::vector<std::pair<char, std::vector<std::pair<int, int> > > > ranges;
-    std::istringstream iss(range);
+    std::istringstream iss(range); // turn ranges into a vector pair to be more manageable
     std::string token;
     while (std::getline(iss, token, ',')) {
         char id = token[0];
@@ -51,100 +41,109 @@ void matrixEncoder(char* range, char* row, int* dataPos, int* headPos) { //algor
                  int start = inner_ranges[k].first; // gets the ranges from the nested vector pair
                  int end = inner_ranges[k].second;
                  if (data >= start && data <= end) { // checks to see if data falls in range if true adds char to the matrix
-                     row[data] = character;
-                     break;
+                    row[data] = character;
+                    break;
                  }
                  
              }
          }
     }
-    
+
 }
 
 void clientInteraction(int newsockfd) {
+    // function for interacting with client, reading and writing i/o, provided from Dr. Rincon
     int n, msgSize = 0;
-    n = read(newsockfd, &msgSize, sizeof(int)); // ranges of the chars
+    n = read(newsockfd, &msgSize, sizeof(int)); // reads in  ranges of the chars
     if (n < 0) {
-        std::cerr << "Error reading from socket" << std::endl;
+        std::cerr << "Error reading from socket1" << std::endl;
         exit(0);
     }
     char* ranges = new char[msgSize+1];
     bzero(ranges, msgSize + 1);
     n = read(newsockfd, ranges, msgSize);
     if (n < 0) {
-        std::cerr << "Error reading from socket" << std::endl;
+        std::cerr << "Error reading from socket2" << std::endl;
         exit(0);
     }
 
     n = 0;
-    int rowSize = 0; // matrix row that will be decoded
+    int rowSize = 0; // reads in matrix row that will be decoded
     n = read(newsockfd, &rowSize, sizeof(int));
     if (n < 0) {
-        std::cerr << "Error reading from socket" << std::endl;
+        std::cerr << "Error reading from socket3" << std::endl;
         exit(0);
     }
     char* row = new char[rowSize+1];
     bzero(row, rowSize + 1);
     n = read(newsockfd, row, rowSize);
     if (n < 0) {
-        std::cerr << "Error reading from socket" << std::endl;
+        std::cerr << "Error reading from socket4" << std::endl;
         exit(0);
     }
 
-    int dataSize = 0; // dataPos arr that contains all of the positions in the matrix
+    int dataSize = 0; // reads in dataPos arr that contains all of the positions in the matrix
     n = 0; 
     n = read(newsockfd, &dataSize, sizeof(int));
     if (n < 0) {
-        std::cerr << "Error reading from socket" << std::endl;
+        std::cerr << "Error reading from socket5" << std::endl;
         exit(0);
     }
     int* dataPos = new int[dataSize];
     bzero(dataPos, dataSize * sizeof(int));
-    n = read(newsockfd, dataPos, msgSize);
+    n = read(newsockfd, dataPos, dataSize * sizeof(int));
     if (n < 0) {
-        std::cerr << "Error reading from socket" << std::endl;
+        std::cerr << "Error reading from socket6" << std::endl;
         exit(0);
     }
 
-    int headSize = 0;
+    int headSize = 0; // reads in headPos arr that contains all the head positions, start and stop
     n = 0; 
     n = read(newsockfd, &headSize, sizeof(int));
     if (n < 0) {
-        std::cerr << "Error reading from socket" << std::endl;
+        std::cerr << "Error reading from socket7" << std::endl;
         exit(0);
     }
     int* headPos = new int[headSize];
     bzero(headPos, headSize * sizeof(int));
-    n = read(newsockfd, headPos, msgSize);
+    n = read(newsockfd, headPos, headSize * sizeof(int));
     if (n < 0) {
-        std::cerr << "Error reading from socket" << std::endl;
+        std::cerr << "Error reading from socket8" << std::endl;
         exit(0);
     }
     
-    matrixEncoder(ranges, row, dataPos, headPos);
+    matrixEncoder(ranges, row, dataPos, headPos); // function call that will edit row and take in all the information read
     
     n = 0;
+    rowSize = strlen(row); // send the row back to the server
     n = write(newsockfd, &rowSize, sizeof(int));
     if (n < 0) {
         std::cerr << "Error writing to socket" << std::endl;
         exit(0);
     }
-    n = write(newsockfd, row, msgSize);
+    n = write(newsockfd, row, rowSize);
     if (n < 0) {
         std::cerr << "Error writing to socket" << std::endl;
         exit(0);
     } 
     
-    close(newsockfd);
+    delete[] ranges;
+    delete[] row;
+    delete[] dataPos;
+    delete[] headPos;
+
+
+    close(newsockfd); // close the socket
     exit(0);
 }
 
-void fireman(int) {
+void fireman(int) { // firemen loop to clear up zombie processes
     while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2)  {
+    // Socket related code provieded from Dr. Rincon's examples in canvas
+    if (argc != 2)  { // ensure that 2 arguments are ran
         std::cerr << "Port not provided" << std::endl;
         exit(0);
     }
@@ -155,6 +154,12 @@ int main(int argc, char *argv[]) {
     if (sockfd < 0) {
         std::cerr << "Error opening socket" << std::endl;
         exit(0);
+    }
+    
+    int yes=1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
+        perror("setsockopt");
+        exit(1);
     }
 
     // Populate the sockaddr_in structure
@@ -177,7 +182,7 @@ int main(int argc, char *argv[]) {
 
     while (true) {
         newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, (socklen_t *)&clilen);
-        if (fork() == 0) {
+        if (fork() == 0) { // fork established to create child processes for the given input from client
             if (newsockfd < 0) {
                 std::cerr << "Error accepting new connections" << std::endl;
                 exit(0);

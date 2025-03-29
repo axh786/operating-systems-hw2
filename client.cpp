@@ -4,15 +4,15 @@ Dr. Rincon
 COSC 3360: Programming Assignment 2
 22 Mar 2025
 */
-
+// The socket related code is provided by Dr. Rincons examples in canvas
 #include <unistd.h>
 #include <iostream>
 #include <string>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h> 
-#include <strings.h>
+#include <netdb.h>
+#include <string.h>
 #include <vector>
 #include <sstream>
 #include <pthread.h>
@@ -26,7 +26,7 @@ struct row { // defining row struct from data given by input so each row will ha
     int index;
     char** outputMatrix; // make changes to matrix when done with figuring out character placement
     
-    char* serverIP;
+    char* serverIP; // add server IP and port number to struct
     char* portno;
 };
 
@@ -36,7 +36,7 @@ void createSocket(char* portNoRaw, char* serverIP, int& sockfd) {
     struct sockaddr_in serv_addr;
     struct hostent *server;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0); // opening socket using example from Dr. Rincon's code
     if (sockfd < 0) {
         std::cerr << "ERROR opening socket" << std::endl;
         exit(0);
@@ -58,69 +58,67 @@ void createSocket(char* portNoRaw, char* serverIP, int& sockfd) {
     }
 }
 
-void sendStringData(const std::string& buffer, int sockfd) {
+void sendStringData(const std::string& buffer, int sockfd) { // send strings to server, provided from Dr. Rincon
     int n;
     int msgSize = buffer.size();
     n = write(sockfd,&msgSize,sizeof(int));
     if (n < 0) {
-        std::cerr << "ERROR writing to socket" << std::endl;
+        std::cerr << "ERROR writing to socket1" << std::endl;
         exit(0);
     }
     n = write(sockfd,buffer.c_str(),msgSize);
     if (n < 0) {
-        std::cerr << "ERROR writing to socket" << std::endl;
+        std::cerr << "ERROR writing to socket2" << std::endl;
         exit(0);
     }
 }
 
-void sendMatrixData(char* row, int cols, int sockfd){
-    int n;
+void sendMatrixData(char* row, int cols, int sockfd){ // send matrix strings to server, provided from Dr. Rincon
+    int n; 
     n = write(sockfd,&cols,sizeof(int));
     if (n < 0) {
-        std::cerr << "ERROR writing to socket" << std::endl;
+        std::cerr << "ERROR writing to socket3" << std::endl;
         exit(0);
     }
     n = write(sockfd,row,cols);
     if (n < 0) {
-        std::cerr << "ERROR writing to socket" << std::endl;
+        std::cerr << "ERROR writing to socket4" << std::endl;
         exit(0);
     }
 }
 
-void sendIntarrData(int* arr, int arrSize, int sockfd) {
+void sendIntarrData(int* arr, int arrSize, int sockfd) { // send int arrs to server, modified from Dr. Rincons code
     int n;
-    n = write(sockfd,&arrSize,sizeof(int));
+    n = write(sockfd, &arrSize, sizeof(int));
     if (n < 0) {
-        std::cerr << "ERROR writing to socket" << std::endl;
+        std::cerr << "ERROR writing to socket5" << std::endl;
         exit(0);
     }
-    n = write(sockfd,arr,sizeof(arr));
+    n = write(sockfd, arr, arrSize * sizeof(int));
     if (n < 0) {
-        std::cerr << "ERROR writing to socket" << std::endl;
+        std::cerr << "ERROR writing to socket6" << std::endl;
         exit(0);
     }
 }
 
-void readData(int index, char** outputMatrix, int sockfd) {
+void readData(int index, char** outputMatrix, int sockfd) { // read data from the server, provided by Dr. Rincon
     int msgSize, n;
     n = read(sockfd,&msgSize,sizeof(int));
     if (n < 0) {
-        std::cerr << "ERROR reading from socket" << std::endl;
+        std::cerr << "ERROR reading from socket9" << std::endl;
         exit(0);
     }
     char *tempBuffer = new char[msgSize+1];
     bzero(tempBuffer,msgSize+1);
     n = read(sockfd,tempBuffer,msgSize);
     if (n < 0) {
-        std::cerr << "ERROR reading from socket" << std::endl;
+        std::cerr << "ERROR reading from socket10" << std::endl;
         exit(0);
     }
-    char* buffer = tempBuffer;
-    delete [] tempBuffer;
-    std::strcpy(outputMatrix[index], buffer);
+    outputMatrix[index] = tempBuffer;
 }
 
-void * decoder(void *void_ptr) {  // thread function
+void * decoder(void *void_ptr) {  // thread function that sends each part to the server
     int sockfd;
     struct row* ptr = (row*) void_ptr;
     createSocket(ptr->portno, ptr->serverIP, sockfd); // opening a socket
@@ -145,7 +143,7 @@ int main(int argc, char *argv[]) {
     std::cin >> cols >> rows;
     std::cin.ignore();
     char** outputMatrix = new char*[rows];
-    
+    // std::cout<<rows<<std::endl;
     for (int r = 0; r < rows; ++r) { // initalizing 2d array
         outputMatrix[r] = new char[cols];
         std::fill(outputMatrix[r], outputMatrix[r] + cols, ' '); // fill 2d array with spaces before decoding
@@ -174,11 +172,11 @@ int main(int argc, char *argv[]) {
     // threading and outputting will both be done in main
     std::vector<row> lines;
     lines.reserve(rows);
-     for (int i = 0; i < rows; i++) {
+     for (int i = 0; i < rows; i++) { // fill vector with each row struct
         row line;
         line.cols = cols;
         line.ranges = new char[ranges.size()+1]; // put ranges in each member
-        std::strcpy(line.ranges, ranges.c_str());
+        strcpy(line.ranges, ranges.c_str());
         line.headPos[0] = headPosition[i]; // filling in head pos
         if (i == rows - 1) {line.headPos[1]= dataSize;} // if that checks if last section, if it is set end to size of data pos
         else {line.headPos[1] = headPosition[i+1];}
